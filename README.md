@@ -1,5 +1,10 @@
 # OpenNaru 위키 엔진
 
+[![CodeScene Average Code Health](https://codescene.io/projects/78493/status-badges/average-code-health)](https://codescene.io/projects/78493)
+[![CodeScene Hotspot Code Health](https://codescene.io/projects/78493/status-badges/hotspot-code-health)](https://codescene.io/projects/78493)
+[![CodeScene Missed Goals](https://codescene.io/projects/78493/status-badges/missed-goals)](https://codescene.io/projects/78493)
+[![CodeScene System Mastery](https://codescene.io/projects/78493/status-badges/system-mastery)](https://codescene.io/projects/78493)
+
 미디어위키와 나무위키(더 시드)의 장점만을 결합한 차세대 오픈소스 위키 엔진입니다.
 
 나무마크 호환 문법, 현대적인 UI/UX, 강력한 틀(Template) 시스템, 멀티위키 지원을 하나의 엔진에서 제공합니다.
