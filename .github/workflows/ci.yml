@@ -51,15 +51,21 @@ jobs:
           DATABASE_URL: postgresql://opennaru:testpassword@localhost:5432/opennaru_test
           APP_SECRET_KEY: ci-test-secret-key-for-testing-only
           APP_ENV: test
-        run: pytest --cov --cov-branch --cov-report=xml --tb=short -q
+        run: pytest --cov --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --tb=short -q
 
-      - name: Codecov 업로드
+      - name: Codecov 커버리지 업로드
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           flags: backend
           fail_ci_if_error: false
+
+      - name: Codecov 테스트 결과 업로드
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   frontend:
     name: Frontend — lint & build
@@ -85,5 +91,7 @@ jobs:
       - name: ESLint
         run: npm run lint
 
-      - name: 빌드
+      - name: 빌드 (번들 분석 포함)
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: npm run build
