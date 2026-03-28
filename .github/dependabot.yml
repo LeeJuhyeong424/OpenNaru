@@ -10,6 +10,21 @@ updates:
     labels:
       - "dependencies"
       - "python"
+    groups:
+      python-dev-deps:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      python-prod-deps:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # pytest-asyncio 메이저 업그레이드는 수동 검토 (호환성 변경 많음)
+      - dependency-name: "pytest-asyncio"
+        update-types: ["version-update:semver-major"]
 
   # Node.js 의존성
   - package-ecosystem: "npm"
@@ -21,6 +36,24 @@ updates:
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-dev-deps:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      npm-prod-deps:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # eslint-config-next가 ESLint 10 미지원 — 메이저 업그레이드 차단
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 6 Breaking change 수동 검토
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -32,3 +65,10 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    groups:
+      github-actions:
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
