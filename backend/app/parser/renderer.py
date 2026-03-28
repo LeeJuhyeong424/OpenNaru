@@ -7,16 +7,38 @@
 import re
 from html import escape
 
-from .nodes import (
-    BaseNode, DocumentNode, HeadingNode, ParagraphNode,
-    TableNode, ListNode, ListItemNode, QuoteNode, HorizontalNode,
-    CodeBlockNode, FoldingNode, CalloutNode, HtmlBlockNode,
-    RedirectNode, TextNode, BoldNode, ItalicNode, UnderlineNode,
-    StrikeNode, SupNode, SubNode, InlineCodeNode, ColorNode, SizeNode,
-    LinkNode, ExternalLinkNode, FootnoteNode, MathNode, TemplateNode,
-    TocEntry, RenderResult,
-)
 from .inline_parser import parse_inline
+from .nodes import (
+    BaseNode,
+    BoldNode,
+    CalloutNode,
+    CodeBlockNode,
+    ColorNode,
+    ExternalLinkNode,
+    FoldingNode,
+    FootnoteNode,
+    HeadingNode,
+    HorizontalNode,
+    HtmlBlockNode,
+    InlineCodeNode,
+    ItalicNode,
+    LinkNode,
+    ListItemNode,
+    ListNode,
+    MathNode,
+    ParagraphNode,
+    QuoteNode,
+    RedirectNode,
+    RenderResult,
+    SizeNode,
+    StrikeNode,
+    SubNode,
+    SupNode,
+    TableNode,
+    TextNode,
+    TocEntry,
+    UnderlineNode,
+)
 
 # 크기 등급 → rem 매핑
 _SIZE_MAP = {

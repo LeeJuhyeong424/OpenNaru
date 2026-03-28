@@ -4,10 +4,10 @@
   입력 텍스트 → [토크나이저] → [블록 파서] → [인라인 파서] → [렌더러] → RenderResult
 """
 
-from .tokenizer import tokenize
 from .block_parser import parse_blocks
-from .renderer import HtmlRenderer
 from .nodes import RenderResult
+from .renderer import HtmlRenderer
+from .tokenizer import tokenize
 
 
 def parse(text: str, allow_raw_html: bool = False) -> RenderResult:

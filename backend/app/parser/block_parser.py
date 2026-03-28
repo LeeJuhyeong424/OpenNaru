@@ -1,12 +1,21 @@
 """2단계: 블록 파서 — 토큰 목록을 블록 AST 노드로 변환한다."""
 
-from .tokens import Token, TokenType
 from .nodes import (
-    BaseNode, HeadingNode, ParagraphNode, TableNode,
-    ListNode, ListItemNode, QuoteNode, HorizontalNode,
-    CodeBlockNode, FoldingNode, CalloutNode, HtmlBlockNode,
+    BaseNode,
+    CalloutNode,
+    CodeBlockNode,
+    FoldingNode,
+    HeadingNode,
+    HorizontalNode,
+    HtmlBlockNode,
+    ListItemNode,
+    ListNode,
+    ParagraphNode,
+    QuoteNode,
     RedirectNode,
+    TableNode,
 )
+from .tokens import Token, TokenType
 
 
 def parse_blocks(tokens: list[Token]) -> list[BaseNode]:

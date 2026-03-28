@@ -17,14 +17,24 @@
 """
 
 import re
-from html import escape
 from urllib.parse import urlparse
 
 from .nodes import (
-    BaseNode, TextNode, BoldNode, ItalicNode, UnderlineNode,
-    StrikeNode, SupNode, SubNode, InlineCodeNode,
-    ColorNode, SizeNode, LinkNode, ExternalLinkNode,
-    FootnoteNode, MathNode, TemplateNode,
+    BaseNode,
+    BoldNode,
+    ColorNode,
+    ExternalLinkNode,
+    FootnoteNode,
+    InlineCodeNode,
+    ItalicNode,
+    LinkNode,
+    MathNode,
+    SizeNode,
+    StrikeNode,
+    SubNode,
+    SupNode,
+    TextNode,
+    UnderlineNode,
 )
 
 # 허용된 외부 링크 프로토콜

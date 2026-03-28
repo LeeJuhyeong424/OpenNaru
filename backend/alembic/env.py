@@ -3,15 +3,16 @@ import sys
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
+
 from alembic import context
 
 # 프로젝트 루트를 sys.path에 추가
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.config import settings
-from app.core.database import Base
 # 모든 모델을 여기서 import해야 마이그레이션에 반영됨
 import app.models  # noqa: F401
+from app.core.config import settings
+from app.core.database import Base
 
 config = context.config
 

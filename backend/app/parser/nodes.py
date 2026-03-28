@@ -3,7 +3,6 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-
 # ── 기본 노드 ─────────────────────────────────────────────────────────────────
 
 @dataclass

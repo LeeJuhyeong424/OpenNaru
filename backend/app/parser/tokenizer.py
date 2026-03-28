@@ -1,8 +1,8 @@
 """1단계: 토크나이저 — 입력 텍스트를 줄 단위로 읽어 토큰으로 분류한다."""
 
 import re
-from .tokens import Token, TokenType
 
+from .tokens import Token, TokenType
 
 # 제목 패턴: = 텍스트 = (1~5단계)
 _RE_HEADING = re.compile(r'^(={1,5})\s+(.+?)\s+\1\s*$')
