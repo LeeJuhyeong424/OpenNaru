@@ -31,7 +31,7 @@ jobs:
         working-directory: backend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Python 설정
         uses: actions/setup-python@v5
@@ -62,7 +62,7 @@ jobs:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Node.js 설정
         uses: actions/setup-node@v6
