@@ -32,4 +32,5 @@ uploads/
 .coverage
 htmlcov/
 
-.CLAUDE.md
+# AI 에이전트 지침 (로컬 전용)
+CLAUDE.md
