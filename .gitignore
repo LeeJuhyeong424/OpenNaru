@@ -1,0 +1,35 @@
+# 환경변수
+.env
+.env.production
+doc/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# Node.js
+node_modules/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 업로드 파일
+uploads/
+
+# 테스트 커버리지
+.coverage
+htmlcov/
+
+.CLAUDE.md
