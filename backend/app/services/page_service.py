@@ -1,0 +1,138 @@
+"""Page 서비스 — 문서 CRUD 및 revision 관리"""
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.models.page import Page
+from app.models.page_revision import PageRevision
+from app.parser import parse
+from app.schemas.page import PageCreate, PageUpdate
+
+
+def _render_html(content: str) -> str:
+    """나무마크 원본을 HTML로 렌더링 (파서 호출)"""
+    result = parse(content)
+    return result.html
+
+
+def create_page(
+    db: Session,
+    wiki_id: int,
+    data: PageCreate,
+    author_id: int | None = None,
+    author_ip: str | None = "0.0.0.0",
+) -> Page:
+    """문서 생성 — 첫 번째 revision(1)과 함께 생성"""
+    # 문서 레코드 생성
+    page = Page(
+        wiki_id=wiki_id,
+        namespace=data.namespace,
+        slug=data.slug,
+        title=data.title,
+    )
+    db.add(page)
+    db.flush()  # page.id 확보
+
+    # 첫 번째 revision 생성
+    html_cache = _render_html(data.content)
+    revision = PageRevision(
+        page_id=page.id,
+        revision_number=1,
+        content=data.content,
+        html_cache=html_cache,
+        summary=data.summary,
+        author_id=author_id,
+        author_ip=author_ip,
+    )
+    db.add(revision)
+    db.flush()  # revision.id 확보
+
+    # 현재 revision 연결
+    page.current_revision_id = revision.id
+    db.commit()
+    db.refresh(page)
+    return page
+
+
+def get_page(
+    db: Session, wiki_id: int, namespace: str, slug: str
+) -> Page | None:
+    """wiki_id + namespace + slug로 활성 문서 조회"""
+    stmt = select(Page).where(
+        Page.wiki_id == wiki_id,
+        Page.namespace == namespace,
+        Page.slug == slug,
+        Page.deleted_at.is_(None),
+    )
+    return db.scalar(stmt)
+
+
+def update_page(
+    db: Session,
+    page: Page,
+    data: PageUpdate,
+    author_id: int | None = None,
+    author_ip: str | None = "0.0.0.0",
+) -> Page:
+    """문서 편집 — 새 revision을 생성하고 current_revision_id 갱신"""
+    # 현재 최대 revision_number 조회
+    count_stmt = select(func.max(PageRevision.revision_number)).where(
+        PageRevision.page_id == page.id
+    )
+    current_max = db.scalar(count_stmt) or 0
+    next_revision_number = current_max + 1
+
+    # 새 revision 생성
+    html_cache = _render_html(data.content)
+    revision = PageRevision(
+        page_id=page.id,
+        revision_number=next_revision_number,
+        content=data.content,
+        html_cache=html_cache,
+        summary=data.summary,
+        author_id=author_id,
+        author_ip=author_ip,
+    )
+    db.add(revision)
+    db.flush()
+
+    # 문서 메타 업데이트
+    if data.title is not None:
+        page.title = data.title
+    page.current_revision_id = revision.id
+
+    db.commit()
+    db.refresh(page)
+    return page
+
+
+def get_revision(
+    db: Session, page_id: int, revision_number: int
+) -> PageRevision | None:
+    """특정 revision 조회"""
+    stmt = select(PageRevision).where(
+        PageRevision.page_id == page_id,
+        PageRevision.revision_number == revision_number,
+    )
+    return db.scalar(stmt)
+
+
+def list_revisions(
+    db: Session, page_id: int, skip: int = 0, limit: int = 20
+) -> tuple[list[PageRevision], int]:
+    """편집 이력 목록 — (items, total) 반환, 최신 순"""
+    base_filter = PageRevision.page_id == page_id
+
+    count_stmt = (
+        select(func.count()).select_from(PageRevision).where(base_filter)
+    )
+    total = db.scalar(count_stmt) or 0
+
+    stmt = (
+        select(PageRevision)
+        .where(base_filter)
+        .order_by(PageRevision.revision_number.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    items = list(db.scalars(stmt).all())
+    return items, total
