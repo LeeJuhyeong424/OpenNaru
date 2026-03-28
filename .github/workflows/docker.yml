@@ -55,7 +55,7 @@ jobs:
             type=sha,prefix=sha-
 
       - name: 백엔드 이미지 빌드 & 푸시
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           push: true
@@ -65,7 +65,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: 프론트엔드 이미지 빌드 & 푸시
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           push: true
