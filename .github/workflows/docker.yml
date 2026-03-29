@@ -1,10 +1,9 @@
 name: Docker 이미지 빌드 및 배포
 
 on:
-  push:
-    branches: [main]
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
+    # MVP 개발 완료 전까지 비활성화 — 수동 실행만 허용
+    # 활성화 시: push.branches: [main], tags: ["v*.*.*"] 로 복원
 
 env:
   REGISTRY: ghcr.io
