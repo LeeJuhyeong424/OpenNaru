@@ -7,7 +7,6 @@ from sqlalchemy.pool import StaticPool
 
 # 모든 모델을 먼저 임포트해야 Base.metadata에 테이블 정보가 등록됨
 import app.models  # noqa: F401
-
 from app.core.database import Base, get_db
 from app.main import app
 

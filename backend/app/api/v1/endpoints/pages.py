@@ -1,10 +1,11 @@
 """문서 엔드포인트 — /wikis/{wiki_slug}/pages 관련 API"""
-# TODO(오케스트레이터): {page_slug:path} greedy 매칭으로 인한 라우터 순서 주의
-# revision 관련 라우트는 반드시 get_page 앞에 등록해야 함
+# revision 관련 라우트는 반드시 {page_slug:path} greedy 라우트 앞에 등록해야 함
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.models.page import Page
+from app.models.wiki import Wiki
 from app.schemas.common import PaginatedResponse
 from app.schemas.page import (
     PageCreate,
@@ -13,6 +14,7 @@ from app.schemas.page import (
     PageUpdate,
 )
 from app.services import page_service, wiki_service
+from app.services.page_service import PageAuthor
 
 router = APIRouter()
 
@@ -30,6 +32,28 @@ def _get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "0.0.0.0"
 
 
+def _get_wiki_or_404(db: Session, wiki_slug: str) -> Wiki:
+    """위키 조회, 없으면 404"""
+    wiki = wiki_service.get_wiki_by_slug(db, wiki_slug)
+    if wiki is None:
+        raise HTTPException(
+            status_code=404,
+            detail=_error("WIKI_NOT_FOUND", "위키를 찾을 수 없습니다."),
+        )
+    return wiki
+
+
+def _get_page_or_404(db: Session, wiki_id: int, namespace: str, page_slug: str) -> Page:
+    """문서 조회, 없으면 404"""
+    page = page_service.get_page(db, wiki_id, namespace, page_slug)
+    if page is None:
+        raise HTTPException(
+            status_code=404,
+            detail=_error("PAGE_NOT_FOUND", "문서를 찾을 수 없습니다."),
+        )
+    return page
+
+
 # --- 더 구체적인 경로를 먼저 등록 (path 컨버터 greedy 매칭 우회) ---
 
 @router.get(
@@ -45,30 +69,15 @@ def get_revision(
     db: Session = Depends(get_db),
 ) -> PageRevisionResponse:
     """특정 번호의 편집 이력을 조회합니다."""
-    wiki = wiki_service.get_wiki_by_slug(db, wiki_slug)
-    if wiki is None:
-        raise HTTPException(
-            status_code=404,
-            detail=_error("WIKI_NOT_FOUND", "위키를 찾을 수 없습니다."),
-        )
-
-    page = page_service.get_page(db, wiki.id, namespace, page_slug)
-    if page is None:
-        raise HTTPException(
-            status_code=404,
-            detail=_error("PAGE_NOT_FOUND", "문서를 찾을 수 없습니다."),
-        )
+    wiki = _get_wiki_or_404(db, wiki_slug)
+    page = _get_page_or_404(db, wiki.id, namespace, page_slug)
 
     revision = page_service.get_revision(db, page.id, rev_num)
     if revision is None:
         raise HTTPException(
             status_code=404,
-            detail=_error(
-                "REVISION_NOT_FOUND",
-                f"revision {rev_num}을 찾을 수 없습니다.",
-            ),
+            detail=_error("REVISION_NOT_FOUND", f"revision {rev_num}을 찾을 수 없습니다."),
         )
-
     return PageRevisionResponse.from_orm_model(revision)
 
 
@@ -86,19 +95,8 @@ def list_revisions(
     db: Session = Depends(get_db),
 ) -> PaginatedResponse[PageRevisionResponse]:
     """문서의 편집 이력을 최신 순으로 반환합니다."""
-    wiki = wiki_service.get_wiki_by_slug(db, wiki_slug)
-    if wiki is None:
-        raise HTTPException(
-            status_code=404,
-            detail=_error("WIKI_NOT_FOUND", "위키를 찾을 수 없습니다."),
-        )
-
-    page = page_service.get_page(db, wiki.id, namespace, page_slug)
-    if page is None:
-        raise HTTPException(
-            status_code=404,
-            detail=_error("PAGE_NOT_FOUND", "문서를 찾을 수 없습니다."),
-        )
+    wiki = _get_wiki_or_404(db, wiki_slug)
+    page = _get_page_or_404(db, wiki.id, namespace, page_slug)
 
     items, total = page_service.list_revisions(db, page.id, skip=skip, limit=limit)
     return PaginatedResponse(
@@ -123,12 +121,7 @@ def get_page(
     db: Session = Depends(get_db),
 ) -> PageResponse:
     """문서를 조회합니다. 없는 경우 404와 함께 생성 가능 여부를 반환합니다."""
-    wiki = wiki_service.get_wiki_by_slug(db, wiki_slug)
-    if wiki is None:
-        raise HTTPException(
-            status_code=404,
-            detail=_error("WIKI_NOT_FOUND", "위키를 찾을 수 없습니다."),
-        )
+    wiki = _get_wiki_or_404(db, wiki_slug)
 
     page = page_service.get_page(db, wiki.id, namespace, page_slug)
     if page is None:
@@ -141,7 +134,6 @@ def get_page(
                 "can_create": True,
             },
         )
-
     return PageResponse.from_orm_model(page, wiki_slug)
 
 
@@ -158,16 +150,10 @@ def create_page(
     db: Session = Depends(get_db),
 ) -> PageResponse:
     """새 문서를 생성합니다."""
-    wiki = wiki_service.get_wiki_by_slug(db, wiki_slug)
-    if wiki is None:
-        raise HTTPException(
-            status_code=404,
-            detail=_error("WIKI_NOT_FOUND", "위키를 찾을 수 없습니다."),
-        )
+    wiki = _get_wiki_or_404(db, wiki_slug)
 
     # 중복 문서 확인
-    existing = page_service.get_page(db, wiki.id, data.namespace, data.slug)
-    if existing is not None:
+    if page_service.get_page(db, wiki.id, data.namespace, data.slug) is not None:
         raise HTTPException(
             status_code=409,
             detail=_error(
@@ -176,11 +162,9 @@ def create_page(
             ),
         )
 
-    # 인증 미구현 단계 — author_id는 None, author_ip는 클라이언트 IP 사용
-    author_ip = _get_client_ip(request)
-    page = page_service.create_page(
-        db, wiki.id, data, author_id=None, author_ip=author_ip
-    )
+    # 인증 미구현 단계 — author_id는 None
+    author = PageAuthor(id=None, ip=_get_client_ip(request))
+    page = page_service.create_page(db, wiki.id, data, author)
     return PageResponse.from_orm_model(page, wiki_slug)
 
 
@@ -198,22 +182,9 @@ def update_page(
     db: Session = Depends(get_db),
 ) -> PageResponse:
     """문서를 편집합니다. 새 revision이 생성됩니다."""
-    wiki = wiki_service.get_wiki_by_slug(db, wiki_slug)
-    if wiki is None:
-        raise HTTPException(
-            status_code=404,
-            detail=_error("WIKI_NOT_FOUND", "위키를 찾을 수 없습니다."),
-        )
+    wiki = _get_wiki_or_404(db, wiki_slug)
+    page = _get_page_or_404(db, wiki.id, namespace, page_slug)
 
-    page = page_service.get_page(db, wiki.id, namespace, page_slug)
-    if page is None:
-        raise HTTPException(
-            status_code=404,
-            detail=_error("PAGE_NOT_FOUND", "문서를 찾을 수 없습니다."),
-        )
-
-    author_ip = _get_client_ip(request)
-    updated = page_service.update_page(
-        db, page, data, author_id=None, author_ip=author_ip
-    )
+    author = PageAuthor(id=None, ip=_get_client_ip(request))
+    updated = page_service.update_page(db, page, data, author)
     return PageResponse.from_orm_model(updated, wiki_slug)

@@ -1,5 +1,4 @@
 """문서 API 통합 테스트 — /api/v1/wikis/{slug}/pages 엔드포인트"""
-import pytest
 
 
 # --- 공통 헬퍼 ---
@@ -16,16 +15,9 @@ def create_page_payload(
     title: str = "Hello World",
     content: str = "'''안녕하세요''' 위키입니다.",
     namespace: str = "main",
-    summary: str = "",
 ) -> dict:
-    """문서 생성 요청 페이로드 헬퍼"""
-    return {
-        "namespace": namespace,
-        "slug": slug,
-        "title": title,
-        "content": content,
-        "summary": summary,
-    }
+    """문서 생성 요청 페이로드 헬퍼 (summary는 호출 측에서 병합)"""
+    return {"namespace": namespace, "slug": slug, "title": title, "content": content, "summary": ""}
 
 
 # --- 테스트 케이스 ---
@@ -311,11 +303,7 @@ class TestGetSpecificRevision:
         setup_wiki(client, slug="fields-wiki")
         client.post(
             "/api/v1/wikis/fields-wiki/pages",
-            json=create_page_payload(
-                slug="fields-doc",
-                content="내용",
-                summary="최초 작성",
-            ),
+            json={**create_page_payload(slug="fields-doc", content="내용"), "summary": "최초 작성"},
         )
 
         resp = client.get(

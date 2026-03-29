@@ -1,5 +1,4 @@
 """위키 API 통합 테스트 — /api/v1/wikis 엔드포인트"""
-import pytest
 
 
 # --- 공통 헬퍼 ---

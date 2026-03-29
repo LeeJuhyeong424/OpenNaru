@@ -1,4 +1,6 @@
 """Page 서비스 — 문서 CRUD 및 revision 관리"""
+from dataclasses import dataclass, field
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -6,6 +8,14 @@ from app.models.page import Page
 from app.models.page_revision import PageRevision
 from app.parser import parse
 from app.schemas.page import PageCreate, PageUpdate
+
+
+@dataclass
+class PageAuthor:
+    """편집자 정보 — author_id와 author_ip를 묶어 전달"""
+
+    id: int | None = None
+    ip: str = field(default="0.0.0.0")
 
 
 def _render_html(content: str) -> str:
@@ -18,10 +28,12 @@ def create_page(
     db: Session,
     wiki_id: int,
     data: PageCreate,
-    author_id: int | None = None,
-    author_ip: str | None = "0.0.0.0",
+    author: PageAuthor | None = None,
 ) -> Page:
     """문서 생성 — 첫 번째 revision(1)과 함께 생성"""
+    if author is None:
+        author = PageAuthor()
+
     # 문서 레코드 생성
     page = Page(
         wiki_id=wiki_id,
@@ -40,8 +52,8 @@ def create_page(
         content=data.content,
         html_cache=html_cache,
         summary=data.summary,
-        author_id=author_id,
-        author_ip=author_ip,
+        author_id=author.id,
+        author_ip=author.ip,
     )
     db.add(revision)
     db.flush()  # revision.id 확보
@@ -70,10 +82,12 @@ def update_page(
     db: Session,
     page: Page,
     data: PageUpdate,
-    author_id: int | None = None,
-    author_ip: str | None = "0.0.0.0",
+    author: PageAuthor | None = None,
 ) -> Page:
     """문서 편집 — 새 revision을 생성하고 current_revision_id 갱신"""
+    if author is None:
+        author = PageAuthor()
+
     # 현재 최대 revision_number 조회
     count_stmt = select(func.max(PageRevision.revision_number)).where(
         PageRevision.page_id == page.id
@@ -89,8 +103,8 @@ def update_page(
         content=data.content,
         html_cache=html_cache,
         summary=data.summary,
-        author_id=author_id,
-        author_ip=author_ip,
+        author_id=author.id,
+        author_ip=author.ip,
     )
     db.add(revision)
     db.flush()
@@ -122,9 +136,7 @@ def list_revisions(
     """편집 이력 목록 — (items, total) 반환, 최신 순"""
     base_filter = PageRevision.page_id == page_id
 
-    count_stmt = (
-        select(func.count()).select_from(PageRevision).where(base_filter)
-    )
+    count_stmt = select(func.count()).select_from(PageRevision).where(base_filter)
     total = db.scalar(count_stmt) or 0
 
     stmt = (
