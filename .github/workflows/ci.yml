@@ -54,7 +54,7 @@ jobs:
         run: pytest --cov --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --tb=short -q
 
       - name: Codecov 커버리지 업로드
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
