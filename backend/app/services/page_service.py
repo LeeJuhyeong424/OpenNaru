@@ -12,7 +12,7 @@ from app.schemas.page import PageCreate, PageUpdate
 
 @dataclass
 class PageAuthor:
-    """편집자 정보 — author_id와 author_ip를 묶어 전달"""
+    """편집자 정보 — editor_id와 editor_ip를 묶어 전달"""
 
     id: int | None = None
     ip: str = field(default="0.0.0.0")
@@ -30,7 +30,7 @@ def create_page(
     data: PageCreate,
     author: PageAuthor | None = None,
 ) -> Page:
-    """문서 생성 — 첫 번째 revision(1)과 함께 생성"""
+    """문서 생성 — 첫 번째 revision과 함께 생성"""
     if author is None:
         author = PageAuthor()
 
@@ -45,21 +45,25 @@ def create_page(
     db.flush()  # page.id 확보
 
     # 첫 번째 revision 생성
-    html_cache = _render_html(data.content)
+    content_html = _render_html(data.content)
+    byte_size = len(data.content.encode("utf-8"))
     revision = PageRevision(
         page_id=page.id,
-        revision_number=1,
+        wiki_id=wiki_id,
         content=data.content,
-        html_cache=html_cache,
-        summary=data.summary,
-        author_id=author.id,
-        author_ip=author.ip,
+        comment=data.comment,
+        editor_id=author.id,
+        editor_ip=author.ip,
+        byte_size=byte_size,
+        byte_diff=byte_size,
     )
     db.add(revision)
     db.flush()  # revision.id 확보
 
-    # 현재 revision 연결
-    page.current_revision_id = revision.id
+    # 문서 content 및 latest_revision 갱신
+    page.content = data.content
+    page.content_html = content_html
+    page.latest_revision_id = revision.id
     db.commit()
     db.refresh(page)
     return page
@@ -84,27 +88,25 @@ def update_page(
     data: PageUpdate,
     author: PageAuthor | None = None,
 ) -> Page:
-    """문서 편집 — 새 revision을 생성하고 current_revision_id 갱신"""
+    """문서 편집 — 새 revision을 생성하고 latest_revision_id 갱신"""
     if author is None:
         author = PageAuthor()
 
-    # 현재 최대 revision_number 조회
-    count_stmt = select(func.max(PageRevision.revision_number)).where(
-        PageRevision.page_id == page.id
-    )
-    current_max = db.scalar(count_stmt) or 0
-    next_revision_number = current_max + 1
+    # 이전 byte_size 계산 (byte_diff 산출용)
+    prev_size = len((page.content or "").encode("utf-8"))
+    new_size = len(data.content.encode("utf-8"))
 
     # 새 revision 생성
-    html_cache = _render_html(data.content)
+    content_html = _render_html(data.content)
     revision = PageRevision(
         page_id=page.id,
-        revision_number=next_revision_number,
+        wiki_id=page.wiki_id,
         content=data.content,
-        html_cache=html_cache,
-        summary=data.summary,
-        author_id=author.id,
-        author_ip=author.ip,
+        comment=data.comment,
+        editor_id=author.id,
+        editor_ip=author.ip,
+        byte_size=new_size,
+        byte_diff=new_size - prev_size,
     )
     db.add(revision)
     db.flush()
@@ -112,7 +114,9 @@ def update_page(
     # 문서 메타 업데이트
     if data.title is not None:
         page.title = data.title
-    page.current_revision_id = revision.id
+    page.content = data.content
+    page.content_html = content_html
+    page.latest_revision_id = revision.id
 
     db.commit()
     db.refresh(page)
@@ -120,12 +124,12 @@ def update_page(
 
 
 def get_revision(
-    db: Session, page_id: int, revision_number: int
+    db: Session, page_id: int, revision_id: int
 ) -> PageRevision | None:
-    """특정 revision 조회"""
+    """특정 revision ID로 조회"""
     stmt = select(PageRevision).where(
         PageRevision.page_id == page_id,
-        PageRevision.revision_number == revision_number,
+        PageRevision.id == revision_id,
     )
     return db.scalar(stmt)
 
@@ -142,7 +146,7 @@ def list_revisions(
     stmt = (
         select(PageRevision)
         .where(base_filter)
-        .order_by(PageRevision.revision_number.desc())
+        .order_by(PageRevision.id.desc())
         .offset(skip)
         .limit(limit)
     )

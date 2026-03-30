@@ -57,7 +57,7 @@ def _get_page_or_404(db: Session, wiki_id: int, namespace: str, page_slug: str) 
 # --- 더 구체적인 경로를 먼저 등록 (path 컨버터 greedy 매칭 우회) ---
 
 @router.get(
-    "/{wiki_slug}/pages/{namespace}/{page_slug:path}/revisions/{rev_num}",
+    "/{wiki_slug}/pages/{namespace}/{page_slug:path}/revisions/{rev_id}",
     response_model=PageRevisionResponse,
     summary="특정 revision 조회",
 )
@@ -65,18 +65,18 @@ def get_revision(
     wiki_slug: str,
     namespace: str,
     page_slug: str,
-    rev_num: int,
+    rev_id: int,
     db: Session = Depends(get_db),
 ) -> PageRevisionResponse:
-    """특정 번호의 편집 이력을 조회합니다."""
+    """특정 ID의 편집 이력을 조회합니다."""
     wiki = _get_wiki_or_404(db, wiki_slug)
     page = _get_page_or_404(db, wiki.id, namespace, page_slug)
 
-    revision = page_service.get_revision(db, page.id, rev_num)
+    revision = page_service.get_revision(db, page.id, rev_id)
     if revision is None:
         raise HTTPException(
             status_code=404,
-            detail=_error("REVISION_NOT_FOUND", f"revision {rev_num}을 찾을 수 없습니다."),
+            detail=_error("REVISION_NOT_FOUND", f"revision {rev_id}을 찾을 수 없습니다."),
         )
     return PageRevisionResponse.from_orm_model(revision)
 

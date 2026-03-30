@@ -16,8 +16,8 @@ def create_page_payload(
     content: str = "'''안녕하세요''' 위키입니다.",
     namespace: str = "main",
 ) -> dict:
-    """문서 생성 요청 페이로드 헬퍼 (summary는 호출 측에서 병합)"""
-    return {"namespace": namespace, "slug": slug, "title": title, "content": content, "summary": ""}
+    """문서 생성 요청 페이로드 헬퍼"""
+    return {"namespace": namespace, "slug": slug, "title": title, "content": content, "comment": ""}
 
 
 # --- 테스트 케이스 ---
@@ -84,7 +84,7 @@ class TestGetPage:
     """GET /api/v1/wikis/{slug}/pages/{namespace}/{page_slug} — 문서 조회"""
 
     def test_get_page(self, client):
-        """정상 조회 시 200 반환, html_cache 포함 확인"""
+        """정상 조회 시 200 반환, content_html 포함 확인"""
         setup_wiki(client, slug="view-wiki")
         client.post(
             "/api/v1/wikis/view-wiki/pages",
@@ -98,14 +98,16 @@ class TestGetPage:
         assert resp.status_code == 200
         body = resp.json()
 
-        # html_cache는 파서가 렌더링한 HTML을 담고 있어야 함
-        assert body["html_cache"] is not None
-        assert "<strong>" in body["html_cache"] or "strong" in body["html_cache"]
+        # content_html은 파서가 렌더링한 HTML을 담고 있어야 함
+        assert body["content_html"] is not None
+        assert "<strong>" in body["content_html"] or "strong" in body["content_html"]
 
         # 기본 필드 확인
         assert body["slug"] == "test-doc"
         assert body["namespace"] == "main"
-        assert body["current_revision_number"] == 1
+        # latest_revision_id는 정수여야 함
+        assert body["latest_revision_id"] is not None
+        assert isinstance(body["latest_revision_id"], int)
 
     def test_get_page_not_found(self, client):
         """존재하지 않는 문서 조회 시 404 + exists/can_create 필드 반환"""
@@ -132,27 +134,28 @@ class TestUpdatePage:
     """PATCH /api/v1/wikis/{slug}/pages/{namespace}/{page_slug} — 문서 편집"""
 
     def test_update_page(self, client):
-        """편집 시 새 revision 생성, revision_number 증가 확인"""
+        """편집 시 새 revision 생성, latest_revision_id 변경 확인"""
         setup_wiki(client, slug="edit-wiki")
         client.post(
             "/api/v1/wikis/edit-wiki/pages",
             json=create_page_payload(slug="edit-doc", content="원본 내용"),
         )
 
-        # revision 1 확인
+        # 초기 latest_revision_id 확인
         get_resp = client.get("/api/v1/wikis/edit-wiki/pages/main/edit-doc")
-        assert get_resp.json()["current_revision_number"] == 1
+        first_rev_id = get_resp.json()["latest_revision_id"]
+        assert first_rev_id is not None
 
         # 편집
         edit_resp = client.patch(
             "/api/v1/wikis/edit-wiki/pages/main/edit-doc",
-            json={"content": "수정된 내용", "summary": "첫 번째 편집"},
+            json={"content": "수정된 내용", "comment": "첫 번째 편집"},
         )
         assert edit_resp.status_code == 200
         body = edit_resp.json()
 
-        # revision_number가 2로 증가했는지 확인
-        assert body["current_revision_number"] == 2
+        # latest_revision_id가 증가했는지 확인
+        assert body["latest_revision_id"] > first_rev_id
 
     def test_update_page_title(self, client):
         """title 변경 시 문서 제목 업데이트 확인"""
@@ -170,20 +173,23 @@ class TestUpdatePage:
         assert resp.json()["title"] == "바뀐 제목"
 
     def test_update_page_multiple_revisions(self, client):
-        """여러 번 편집 시 revision_number가 순서대로 증가"""
+        """여러 번 편집 시 latest_revision_id가 매번 증가"""
         setup_wiki(client, slug="multi-wiki")
         client.post(
             "/api/v1/wikis/multi-wiki/pages",
             json=create_page_payload(slug="multi-doc"),
         )
 
+        prev_rev_id = 0
         for i in range(2, 5):
             resp = client.patch(
                 "/api/v1/wikis/multi-wiki/pages/main/multi-doc",
-                json={"content": f"편집 {i}", "summary": f"{i}번째 편집"},
+                json={"content": f"편집 {i}", "comment": f"{i}번째 편집"},
             )
             assert resp.status_code == 200
-            assert resp.json()["current_revision_number"] == i
+            new_rev_id = resp.json()["latest_revision_id"]
+            assert new_rev_id > prev_rev_id
+            prev_rev_id = new_rev_id
 
     def test_update_page_not_found(self, client):
         """존재하지 않는 문서 편집 시 404 반환"""
@@ -209,11 +215,11 @@ class TestListRevisions:
         # 2번 편집
         client.patch(
             "/api/v1/wikis/rev-wiki/pages/main/rev-doc",
-            json={"content": "두 번째 편집", "summary": "2차"},
+            json={"content": "두 번째 편집", "comment": "2차"},
         )
         client.patch(
             "/api/v1/wikis/rev-wiki/pages/main/rev-doc",
-            json={"content": "세 번째 편집", "summary": "3차"},
+            json={"content": "세 번째 편집", "comment": "3차"},
         )
 
         resp = client.get("/api/v1/wikis/rev-wiki/pages/main/rev-doc/revisions")
@@ -224,9 +230,9 @@ class TestListRevisions:
         assert body["total"] == 3
         assert len(body["items"]) == 3
 
-        # 최신 순 정렬 확인 (revision_number 내림차순)
-        rev_numbers = [item["revision_number"] for item in body["items"]]
-        assert rev_numbers == [3, 2, 1]
+        # 최신 순 정렬 확인 (id 내림차순)
+        rev_ids = [item["id"] for item in body["items"]]
+        assert rev_ids == sorted(rev_ids, reverse=True)
 
     def test_list_revisions_pagination(self, client):
         """편집 이력 페이지네이션 동작 확인"""
@@ -251,41 +257,44 @@ class TestListRevisions:
 
 
 class TestGetSpecificRevision:
-    """GET /api/v1/wikis/{slug}/pages/{ns}/{slug}/revisions/{rev_num} — 특정 revision 조회"""
+    """GET /api/v1/wikis/{slug}/pages/{ns}/{slug}/revisions/{rev_id} — 특정 revision 조회"""
 
     def test_get_specific_revision(self, client):
-        """특정 revision의 원본 내용 정상 확인"""
+        """특정 revision ID의 원본 내용 정상 확인"""
         setup_wiki(client, slug="spec-rev-wiki")
-        client.post(
+        create_resp = client.post(
             "/api/v1/wikis/spec-rev-wiki/pages",
             json=create_page_payload(slug="spec-doc", content="첫 번째 내용"),
         )
-        client.patch(
-            "/api/v1/wikis/spec-rev-wiki/pages/main/spec-doc",
-            json={"content": "두 번째 내용", "summary": "2차 편집"},
-        )
+        first_rev_id = create_resp.json()["latest_revision_id"]
 
-        # revision 1 조회
+        edit_resp = client.patch(
+            "/api/v1/wikis/spec-rev-wiki/pages/main/spec-doc",
+            json={"content": "두 번째 내용", "comment": "2차 편집"},
+        )
+        second_rev_id = edit_resp.json()["latest_revision_id"]
+
+        # 첫 번째 revision 조회
         resp1 = client.get(
-            "/api/v1/wikis/spec-rev-wiki/pages/main/spec-doc/revisions/1"
+            f"/api/v1/wikis/spec-rev-wiki/pages/main/spec-doc/revisions/{first_rev_id}"
         )
         assert resp1.status_code == 200
         body1 = resp1.json()
-        assert body1["revision_number"] == 1
+        assert body1["id"] == first_rev_id
         assert body1["content"] == "첫 번째 내용"
 
-        # revision 2 조회
+        # 두 번째 revision 조회
         resp2 = client.get(
-            "/api/v1/wikis/spec-rev-wiki/pages/main/spec-doc/revisions/2"
+            f"/api/v1/wikis/spec-rev-wiki/pages/main/spec-doc/revisions/{second_rev_id}"
         )
         assert resp2.status_code == 200
         body2 = resp2.json()
-        assert body2["revision_number"] == 2
+        assert body2["id"] == second_rev_id
         assert body2["content"] == "두 번째 내용"
-        assert body2["summary"] == "2차 편집"
+        assert body2["comment"] == "2차 편집"
 
     def test_get_specific_revision_not_found(self, client):
-        """존재하지 않는 revision 번호 조회 시 404 반환"""
+        """존재하지 않는 revision ID 조회 시 404 반환"""
         setup_wiki(client, slug="no-rev-wiki")
         client.post(
             "/api/v1/wikis/no-rev-wiki/pages",
@@ -293,7 +302,7 @@ class TestGetSpecificRevision:
         )
 
         resp = client.get(
-            "/api/v1/wikis/no-rev-wiki/pages/main/no-rev-doc/revisions/999"
+            "/api/v1/wikis/no-rev-wiki/pages/main/no-rev-doc/revisions/999999"
         )
         assert resp.status_code == 404
         assert resp.json()["detail"]["code"] == "REVISION_NOT_FOUND"
@@ -301,28 +310,30 @@ class TestGetSpecificRevision:
     def test_get_revision_fields(self, client):
         """revision 응답 필드 구조 확인"""
         setup_wiki(client, slug="fields-wiki")
-        client.post(
+        create_resp = client.post(
             "/api/v1/wikis/fields-wiki/pages",
-            json={**create_page_payload(slug="fields-doc", content="내용"), "summary": "최초 작성"},
+            json={**create_page_payload(slug="fields-doc", content="내용"), "comment": "최초 작성"},
         )
+        rev_id = create_resp.json()["latest_revision_id"]
 
         resp = client.get(
-            "/api/v1/wikis/fields-wiki/pages/main/fields-doc/revisions/1"
+            f"/api/v1/wikis/fields-wiki/pages/main/fields-doc/revisions/{rev_id}"
         )
         assert resp.status_code == 200
         body = resp.json()
 
         # 필수 필드 존재 확인
-        assert "id" in body           # uuid
-        assert "revision_number" in body
+        assert "id" in body
         assert "content" in body
-        assert "summary" in body
-        assert "author_username" in body
-        assert "author_ip" in body
-        assert "is_hidden" in body
+        assert "comment" in body
+        assert "editor_username" in body
+        assert "editor_ip" in body
+        assert "is_suppressed" in body
+        assert "byte_size" in body
+        assert "byte_diff" in body
         assert "created_at" in body
 
-        # 인증 미구현 단계 — author_username은 None
-        assert body["author_username"] is None
-        assert body["is_hidden"] is False
-        assert body["summary"] == "최초 작성"
+        # 인증 미구현 단계 — editor_username은 None
+        assert body["editor_username"] is None
+        assert body["is_suppressed"] is False
+        assert body["comment"] == "최초 작성"
