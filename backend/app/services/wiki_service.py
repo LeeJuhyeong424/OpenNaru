@@ -8,16 +8,16 @@ from app.models.wiki import Wiki
 from app.schemas.wiki import WikiCreate, WikiUpdate
 
 
-def create_wiki(db: Session, data: WikiCreate, owner_id: int | None = None) -> Wiki:
+def create_wiki(db: Session, data: WikiCreate) -> Wiki:
     """위키 생성"""
     wiki = Wiki(
         slug=data.slug,
         name=data.name,
         description=data.description,
+        lang=data.lang,
         is_public=data.is_public,
-        default_read_level=data.default_read_level,
-        default_edit_level=data.default_edit_level,
-        owner_id=owner_id,
+        default_edit_acl=data.default_edit_acl,
+        allow_anon_edit=data.allow_anon_edit,
     )
     db.add(wiki)
     db.commit()

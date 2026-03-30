@@ -8,22 +8,24 @@ from pydantic import BaseModel, ConfigDict, Field
 class WikiCreate(BaseModel):
     """위키 생성 요청"""
 
-    slug: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-z0-9-]+$")
-    name: str = Field(..., min_length=1, max_length=200)
+    slug: str = Field(..., min_length=1, max_length=60, pattern=r"^[a-z0-9-]+$")
+    name: str = Field(..., min_length=1, max_length=100)
     description: str | None = Field(None, max_length=2000)
+    lang: str = Field("ko", max_length=10)
     is_public: bool = True
-    default_read_level: str = Field("anonymous", max_length=20)
-    default_edit_level: str = Field("anonymous", max_length=20)
+    default_edit_acl: str = Field("anonymous", max_length=20)
+    allow_anon_edit: bool = False
 
 
 class WikiUpdate(BaseModel):
     """위키 수정 요청 — 모든 필드 선택적"""
 
-    name: str | None = Field(None, min_length=1, max_length=200)
+    name: str | None = Field(None, min_length=1, max_length=100)
     description: str | None = Field(None, max_length=2000)
+    lang: str | None = Field(None, max_length=10)
     is_public: bool | None = None
-    default_read_level: str | None = Field(None, max_length=20)
-    default_edit_level: str | None = Field(None, max_length=20)
+    default_edit_acl: str | None = Field(None, max_length=20)
+    allow_anon_edit: bool | None = None
 
 
 class WikiResponse(BaseModel):
@@ -35,13 +37,13 @@ class WikiResponse(BaseModel):
     slug: str
     name: str
     description: str | None
+    lang: str
     is_public: bool
-    default_read_level: str
-    default_edit_level: str
+    default_edit_acl: str
+    allow_anon_edit: bool
     created_at: datetime
     updated_at: datetime
 
-    # ORM에서 uuid 컬럼을 id로 매핑하기 위한 validator
     @classmethod
     def from_orm_model(cls, wiki: object) -> "WikiResponse":
         return cls(
@@ -49,9 +51,10 @@ class WikiResponse(BaseModel):
             slug=wiki.slug,  # type: ignore[attr-defined]
             name=wiki.name,  # type: ignore[attr-defined]
             description=wiki.description,  # type: ignore[attr-defined]
+            lang=wiki.lang,  # type: ignore[attr-defined]
             is_public=wiki.is_public,  # type: ignore[attr-defined]
-            default_read_level=wiki.default_read_level,  # type: ignore[attr-defined]
-            default_edit_level=wiki.default_edit_level,  # type: ignore[attr-defined]
+            default_edit_acl=wiki.default_edit_acl,  # type: ignore[attr-defined]
+            allow_anon_edit=wiki.allow_anon_edit,  # type: ignore[attr-defined]
             created_at=wiki.created_at,  # type: ignore[attr-defined]
             updated_at=wiki.updated_at,  # type: ignore[attr-defined]
         )

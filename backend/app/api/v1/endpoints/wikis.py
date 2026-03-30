@@ -43,8 +43,8 @@ def create_wiki(
             status_code=409,
             detail=_error("WIKI_SLUG_CONFLICT", f"슬러그 '{data.slug}'는 이미 사용 중입니다."),
         )
-    # 인증 미구현 단계 — owner_id는 None으로 처리
-    wiki = wiki_service.create_wiki(db, data, owner_id=None)
+    # 인증 미구현 단계
+    wiki = wiki_service.create_wiki(db, data)
     return WikiResponse.from_orm_model(wiki)
 
 
